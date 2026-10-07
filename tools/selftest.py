@@ -194,10 +194,24 @@ def test_ota_versions() -> None:
     check("源码运行时拒绝自动替换", "源码" in (raised or ""), True)
 
 
+def test_metadata() -> None:
+    print("\n=== 9. 元数据与免责声明 ===")
+    from pdfdatetool import DISCLAIMER, DISCLAIMER_ONELINE, DISCLAIMER_TITLE, __version__
+
+    check("版本号形如 x.y.z", bool(re.fullmatch(r"\d+\.\d+\.\d+", __version__)), True)
+    check("免责声明非空", len(DISCLAIMER.strip()) > 50, True)
+    check("声明含禁止用途表述", "违法" in DISCLAIMER, True)
+    check("声明含免责表述", "不负责" in DISCLAIMER or "责任" in DISCLAIMER, True)
+    check("标题非空", bool(DISCLAIMER_TITLE.strip()), True)
+    check("单行声明不含换行", "\n" not in DISCLAIMER_ONELINE, True)
+    check("单行声明不含单引号", "'" not in DISCLAIMER_ONELINE, True)
+
+
 def main() -> int:
     test_date_engine()
     test_pdf_pipeline()
     test_ota_versions()
+    test_metadata()
     print("\n" + "=" * 50)
     if failures:
         print(f"结果：{len(failures)} 项失败")

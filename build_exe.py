@@ -18,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from pdfdatetool import __version__  # noqa: E402
+from pdfdatetool import DISCLAIMER_ONELINE, __version__  # noqa: E402
 
 NAME = "PDFDateTool"
 ICON = ROOT / "assets" / "app.ico"
@@ -48,7 +48,8 @@ _VERSION_INFO_TEMPLATE = """VSVersionInfo(
           StringStruct(u'InternalName', u'{name}'),
           StringStruct(u'OriginalFilename', u'{name}.exe'),
           StringStruct(u'ProductName', u'{name}'),
-          StringStruct(u'ProductVersion', u'{version}')])
+          StringStruct(u'ProductVersion', u'{version}'),
+          StringStruct(u'Comments', u'{comments}')])
       ]),
     VarFileInfo([VarStruct(u'Translation', [2052, 1200])])
   ]
@@ -63,6 +64,7 @@ def write_version_file() -> Path:
         quad="(" + ", ".join(str(p) for p in parts) + ")",
         version=__version__,
         name=NAME,
+        comments=DISCLAIMER_ONELINE.replace("'", " "),
     )
     path = BUILD / "version_info.txt"
     path.parent.mkdir(parents=True, exist_ok=True)

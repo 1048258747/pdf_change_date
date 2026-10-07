@@ -18,7 +18,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from . import REPO, __version__, ota
+from . import DISCLAIMER, DISCLAIMER_TITLE, REPO, __version__, ota
 from .batch import collect_pdfs, run_batch, scan_many
 from .core import SOURCE_ANNOT, SOURCE_FIELD, SOURCE_TEXT, ScanResult
 
@@ -77,13 +77,19 @@ class App(ttk.Frame):
             pass
         style.configure("Hint.TLabel", foreground="#666666")
         style.configure("Head.TLabel", font=("Microsoft YaHei UI", 13, "bold"))
+        style.configure("Warn.TLabel", foreground="#b3541e")
 
         ttk.Label(self, text="PDF 日期修改工具", style="Head.TLabel").pack(anchor="w")
         ttk.Label(
             self,
             text="改写 PDF 中「正文文字 / 表单域 / 注释」里的日期，保持原有格式，另存到新目录。",
             style="Hint.TLabel",
-        ).pack(anchor="w", pady=(2, 10))
+        ).pack(anchor="w", pady=(2, 6))
+        ttk.Label(
+            self,
+            text=f"【{DISCLAIMER_TITLE}】仅供技术学习与研究参考，请勿用于任何违法违规用途。",
+            style="Warn.TLabel",
+        ).pack(anchor="w", pady=(0, 10))
 
         # --- 文件操作行
         bar = ttk.Frame(self)
@@ -184,6 +190,7 @@ class App(ttk.Frame):
         self.update_btn = ttk.Button(foot, text="检查更新", command=self.check_updates_manual)
         self.update_btn.pack(side="left")
         ttk.Button(foot, text="项目主页", command=self._open_homepage).pack(side="left", padx=6)
+        ttk.Button(foot, text=DISCLAIMER_TITLE, command=self._show_disclaimer).pack(side="left")
         self.version_label = ttk.Label(foot, text=f"当前版本 v{__version__}", style="Hint.TLabel")
         self.version_label.pack(side="right")
 
@@ -227,6 +234,9 @@ class App(ttk.Frame):
         self.scan_btn.configure(state=state)
         self.run_btn.configure(state=state)
         self.update_btn.configure(state=state)
+
+    def _show_disclaimer(self) -> None:
+        messagebox.showinfo(DISCLAIMER_TITLE, DISCLAIMER)
 
     # ---------------------------------------------------------------- 文件
     def _add(self, paths: list[Path], base: Path | None) -> None:
