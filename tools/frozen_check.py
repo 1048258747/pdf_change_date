@@ -32,6 +32,17 @@ def _make_pdf(path: Path) -> None:
     doc.close()
 
 
+def _make_text_pdf(path: Path) -> None:
+    import pymupdf
+
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 120), "Vendor: ACME Ltd", fontsize=12)
+    page.insert_text((72, 150), "Amount: 1,200.00", fontsize=12)
+    doc.save(str(path))
+    doc.close()
+
+
 def main() -> int:
     out_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("frozen_report.txt")
     lines: list[str] = []
@@ -66,7 +77,27 @@ def main() -> int:
 
         hit = "2025-06-02" in text and "2025/06/02" in text
         note(f"回读校验 = {'PASS' if hit else 'FAIL'}（原日期两位月/日，替换后保持两位）")
-        ok = bool(result.ok and result.replaced >= 2 and hit)
+
+        from pdfdatetool.core import apply_rules_to_pdf, scan_pdf_text
+        from pdfdatetool.rules import ReplaceRule
+
+        src2, dst2 = work / "text_in.pdf", work / "text_out.pdf"
+        _make_text_pdf(src2)
+        rules = [ReplaceRule("Vendor: ACME Ltd", "Vendor: ACME Trading Ltd")]
+        found = scan_pdf_text(src2, rules)
+        note(f"文字扫描 = {found.count} 处，err={found.error}")
+        res2 = apply_rules_to_pdf(src2, dst2, rules)
+        doc = pymupdf.open(str(dst2))
+        text2 = doc[0].get_text("text").replace(" ", "")
+        doc.close()
+        note(f"文字替换 = ok={res2.ok} replaced={res2.replaced}")
+        hit2 = "Vendor:ACMETradingLtd" in text2
+        note(f"文字回读 = {'PASS' if hit2 else 'FAIL'}")
+
+        ok = bool(
+            result.ok and result.replaced >= 2 and hit
+            and res2.ok and res2.replaced >= 1 and hit2
+        )
     except Exception:
         note("EXCEPTION:\n" + traceback.format_exc())
 

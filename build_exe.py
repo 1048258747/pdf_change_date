@@ -43,7 +43,7 @@ _VERSION_INFO_TEMPLATE = """VSVersionInfo(
         StringTable(
           u'080404b0',
           [StringStruct(u'CompanyName', u'1048258747'),
-          StringStruct(u'FileDescription', u'PDF 日期修改工具'),
+          StringStruct(u'FileDescription', u'PDF 日期 / 文字修改工具'),
           StringStruct(u'FileVersion', u'{version}'),
           StringStruct(u'InternalName', u'{name}'),
           StringStruct(u'OriginalFilename', u'{name}.exe'),

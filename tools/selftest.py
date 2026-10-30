@@ -19,8 +19,14 @@ import pymupdf  # noqa: E402
 
 import make_samples  # noqa: E402
 from pdfdatetool import batch  # noqa: E402
-from pdfdatetool.core import apply_to_pdf, scan_pdf  # noqa: E402
+from pdfdatetool.core import (  # noqa: E402
+    apply_rules_to_pdf,
+    apply_to_pdf,
+    scan_pdf,
+    scan_pdf_text,
+)
 from pdfdatetool.dates import find_dates, replace_dates  # noqa: E402
+from pdfdatetool.rules import ReplaceRule, apply_rules, find_rule_matches  # noqa: E402
 
 TARGET = date(2025, 6, 2)
 failures: list[str] = []
@@ -194,6 +200,102 @@ def test_ota_versions() -> None:
     check("源码运行时拒绝自动替换", "源码" in (raised or ""), True)
 
 
+def _find_span(path, needle: str):
+    doc = pymupdf.open(str(path))
+    try:
+        for pno in range(doc.page_count):
+            for block in doc[pno].get_text("rawdict")["blocks"]:
+                if block.get("type") != 0:
+                    continue
+                for line in block.get("lines", []):
+                    for span in line.get("spans", []):
+                        if not span.get("chars"):
+                            continue
+                        text = "".join(c["c"] for c in span["chars"])
+                        if needle in text:
+                            return span
+    finally:
+        doc.close()
+    return None
+
+
+def _span_x(path, needle: str) -> float:
+    span = _find_span(path, needle)
+    return round(span["chars"][0]["origin"][0], 2) if span else -1.0
+
+
+def _char_x(path, needle: str) -> float:
+    """needle 在所在 span 里的首字符 x——相邻文字可能被合并成一个 span。"""
+    span = _find_span(path, needle)
+    if not span:
+        return -1.0
+    text = "".join(c["c"] for c in span["chars"])
+    idx = text.find(needle)
+    if idx < 0 or idx >= len(span["chars"]):
+        return -1.0
+    return round(span["chars"][idx]["origin"][0], 2)
+
+
+def _make_pair(path, left: str, x_left: float, right: str, x_right: float) -> None:
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((x_left, 120), left, fontname="china-s", fontsize=11)
+    page.insert_text((x_right, 120), right, fontname="china-s", fontsize=11)
+    doc.save(str(path))
+    doc.close()
+
+
+def test_text_rules() -> None:
+    print("\n=== 10. 查找/替换规则 ===")
+    rules = [ReplaceRule("发票", "票据"), ReplaceRule("发票号码", "票据编号")]
+    got, changed = apply_rules("发票号码：12345678 发票", rules)
+    check("同一位置长规则优先", got, "票据编号：12345678 票据")
+    check("规则命中数", len(changed), 2)
+
+    got, _ = apply_rules("ABC abc", [ReplaceRule("abc", "X")])
+    check("默认区分大小写", got, "ABC X")
+    got, _ = apply_rules("ABC abc", [ReplaceRule("abc", "X", case_sensitive=False)])
+    check("忽略大小写", got, "X X")
+    check("无命中原样返回", apply_rules("无关文字", rules), ("无关文字", []))
+    check("空文本", apply_rules("", rules), ("", []))
+
+    out_dir = ROOT / "samples" / "_out"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    print("\n=== 11. 正文文字替换（字体保持 + 同行顺移） ===")
+    src = ROOT / "samples" / "sample_invoice.pdf"
+    src_span = _find_span(src, "开票日期")
+    hit = scan_pdf_text(src, [ReplaceRule("开票日期", "开票时间（新）")])
+    check("扫描命中数", hit.count, 1)
+
+    out = out_dir / "text_shift.pdf"
+    res = apply_rules_to_pdf(src, out, [ReplaceRule("开票日期", "开票时间（新）")])
+    check("替换成功", res.ok, True)
+    check("替换处数", res.replaced, 1)
+    span = _find_span(out, "开票时间（新）")
+    text = "".join(c["c"] for c in span["chars"])
+    check("整行内容", text, "开票时间（新）：2024年5月1日")
+    check("字号保持", round(span["size"], 2), round(src_span["size"], 2))
+    check("颜色保持", span["color"], src_span["color"])
+    check("未超出页面", len(res.warnings), 0)
+
+    print("\n=== 12. 标签→值 顺移；大间距内容不联动 ===")
+    pair_src = out_dir / "pair_src.pdf"
+    _make_pair(pair_src, "发票号码：", 72, "26417000000349674414", 130)
+    x_before = _char_x(pair_src, "26417000000349674414")
+    pair_out = out_dir / "pair_out.pdf"
+    r2 = apply_rules_to_pdf(pair_src, pair_out, [ReplaceRule("发票号码", "票据编号（长）")])
+    check("标签替换成功", r2.ok, True)
+    check("值已右移", _char_x(pair_out, "26417000000349674414") > x_before, True)
+
+    cells_src = out_dir / "cells_src.pdf"
+    _make_pair(cells_src, "项目名称", 72, "规格型号", 300)
+    x_right = _span_x(cells_src, "规格型号")
+    cells_out = out_dir / "cells_out.pdf"
+    apply_rules_to_pdf(cells_src, cells_out, [ReplaceRule("项目名称", "项目名称（很长很长）")])
+    check("大间距单元格不被牵动", _span_x(cells_out, "规格型号"), x_right)
+
+
 def test_metadata() -> None:
     print("\n=== 9. 元数据与免责声明 ===")
     from pdfdatetool import DISCLAIMER, DISCLAIMER_ONELINE, DISCLAIMER_TITLE, __version__
@@ -212,6 +314,7 @@ def main() -> int:
     test_pdf_pipeline()
     test_ota_versions()
     test_metadata()
+    test_text_rules()
     print("\n" + "=" * 50)
     if failures:
         print(f"结果：{len(failures)} 项失败")

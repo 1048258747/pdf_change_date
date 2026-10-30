@@ -56,6 +56,21 @@ def main() -> int:
     root.update()
     print(f"「今天」后的目标日期 = {app._target_date()}")
 
+    app.mode_var.set("text")
+    app._on_mode_change()
+    root.update()
+    print(f"文字模式扫描按钮 = {app.scan_btn.cget('text')}")
+    app.find_var.set("增值税电子普通发票")
+    app.replace_var.set("增值税普通发票")
+    app.add_rule()
+    root.update()
+    print(f"规则数 = {len(app.rules)}，规则表行数 = {len(app.rule_tree.get_children())}")
+
+    app.mode_var.set("date")
+    app._on_mode_change()
+    root.update()
+    print(f"切回日期模式扫描按钮 = {app.scan_btn.cget('text')}")
+
     root.destroy()
     print("GUI 冒烟测试通过")
     return 0

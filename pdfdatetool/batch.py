@@ -7,7 +7,14 @@ from datetime import date
 from pathlib import Path
 from typing import Callable, Iterable
 
-from .core import ApplyResult, ScanResult, apply_to_pdf, scan_pdf
+from .core import (
+    ApplyResult,
+    ScanResult,
+    apply_rules_to_pdf,
+    apply_to_pdf,
+    scan_pdf,
+    scan_pdf_text,
+)
 
 __all__ = ["collect_pdfs", "BatchReport", "run_batch", "scan_many"]
 
@@ -37,11 +44,16 @@ def scan_many(
     files: Iterable[Path],
     progress: Callable[[int, int, Path], None] | None = None,
     sources=None,
+    rules=None,
 ) -> list[ScanResult]:
+    """扫描一批文件。给了 rules 就按「查找/替换规则」扫描，否则扫描日期。"""
     files = list(files)
     results: list[ScanResult] = []
     for i, f in enumerate(files, 1):
-        results.append(scan_pdf(f, sources=sources))
+        if rules:
+            results.append(scan_pdf_text(f, rules=rules, sources=sources))
+        else:
+            results.append(scan_pdf(f, sources=sources))
         if progress:
             progress(i, len(files), f)
     return results
@@ -99,14 +111,16 @@ def _output_path(src: Path, out_dir: Path, base_dir: Path | None, used: set[str]
 def run_batch(
     files: Iterable[Path],
     out_dir: Path | str,
-    target: date,
+    target: date | None = None,
     base_dir: Path | str | None = None,
     base_map: dict[Path, Path] | None = None,
     progress: Callable[[int, int, Path], None] | None = None,
     sources=None,
+    rules=None,
 ) -> BatchReport:
-    """对一批 PDF 统一把日期改写为 target，另存到 out_dir。
+    """对一批 PDF 另存到 out_dir。
 
+    给了 rules 就按查找/替换规则改写文字，否则把日期统一改写为 target。
     base_map 可为每个源文件单独指定基准目录，用于在输出目录中保留子目录结构。
     """
     files = list(files)
@@ -119,7 +133,10 @@ def run_batch(
         if base is None and base_dir:
             base = Path(base_dir)
         dst = _output_path(src, out_dir, base, used)
-        report.results.append(apply_to_pdf(src, dst, target, sources=sources))
+        if rules:
+            report.results.append(apply_rules_to_pdf(src, dst, rules, sources=sources))
+        else:
+            report.results.append(apply_to_pdf(src, dst, target, sources=sources))
         if progress:
             progress(i, len(files), src)
 
